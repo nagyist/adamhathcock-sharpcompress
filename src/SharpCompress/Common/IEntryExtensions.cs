@@ -11,13 +11,10 @@ internal static partial class IEntryExtensions
         ExtractionOptions? options
     )
     {
-        if (options?.CheckCrc != false && entry is Entry typedEntry)
+        options ??= new ExtractionOptions();
+        if (options.CheckCrc && entry is Entry typedEntry)
         {
-            var checksum = typedEntry.Checksum;
-            if (checksum.IsAvailable)
-            {
-                return new ChecksumValidationStream(source, checksum, entry.Key);
-            }
+            return typedEntry.WrapWithChecksumValidation(source, options);
         }
 
         return source;

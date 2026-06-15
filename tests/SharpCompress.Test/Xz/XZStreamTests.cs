@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using SharpCompress.Common;
 using SharpCompress.Compressors.Xz;
 using SharpCompress.IO;
 using SharpCompress.Test.Mocks;
@@ -53,5 +54,16 @@ public class XzStreamTests : XzTestsBase
         using var sr = new StreamReader(xz);
         var uncompressed = sr.ReadToEnd();
         Assert.Equal(OriginalEmpty, uncompressed);
+    }
+
+    [Fact]
+    public void Throws_On_Corrupt_Block_Check()
+    {
+        var compressed = (byte[])Compressed.Clone();
+        compressed[compressed.Length - 29] ^= 1;
+        using var xz = new XZStream(new MemoryStream(compressed));
+        using var output = new MemoryStream();
+
+        Assert.Throws<InvalidFormatException>(() => xz.CopyTo(output));
     }
 }

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using SharpCompress.Common.Options;
 
@@ -85,6 +86,17 @@ public abstract class Entry : IEntry
     internal virtual void Close() { }
 
     internal virtual ChecksumDescriptor Checksum => default;
+
+    internal virtual Stream WrapWithChecksumValidation(Stream source, ExtractionOptions options)
+    {
+        var checksum = Checksum;
+        if (!checksum.IsAvailable)
+        {
+            return source;
+        }
+
+        return new ChecksumValidationStream(source, checksum, Key);
+    }
 
     /// <summary>
     /// Entry file attribute.

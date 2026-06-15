@@ -20,6 +20,9 @@ public partial class GZipEntry : Entry
 
     public override long Crc => _filePart?.Crc ?? 0;
 
+    internal override Stream WrapWithChecksumValidation(Stream source, ExtractionOptions options) =>
+        _filePart?.WrapWithChecksumValidation(source, Key) ?? source;
+
     public override string? Key => _filePart?.FilePartName;
 
     public override string? LinkTarget => null;

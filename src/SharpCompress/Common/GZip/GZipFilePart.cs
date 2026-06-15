@@ -5,6 +5,7 @@ using System.IO;
 using SharpCompress.Common.Tar.Headers;
 using SharpCompress.Compressors;
 using SharpCompress.Compressors.Deflate;
+using SharpCompress.IO;
 using SharpCompress.Providers;
 
 namespace SharpCompress.Common.GZip;
@@ -48,7 +49,7 @@ internal sealed partial class GZipFilePart : FilePart
     )
         : base(archiveEncoding)
     {
-        _stream = stream;
+        _stream = SharpCompressStream.Create(stream);
         _compressionProviders = compressionProviders;
     }
 
@@ -65,6 +66,9 @@ internal sealed partial class GZipFilePart : FilePart
         //GZip uses Deflate compression, at this point we need a deflate stream
         return _compressionProviders.CreateDecompressStream(CompressionType.Deflate, _stream);
     }
+
+    internal Stream WrapWithChecksumValidation(Stream source, string? entryName) =>
+        new GZipChecksumValidationStream(source, _stream, entryName, Crc, UncompressedSize);
 
     internal override Stream GetRawStream() => _stream;
 
