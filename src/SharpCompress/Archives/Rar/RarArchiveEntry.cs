@@ -71,22 +71,19 @@ public partial class RarArchiveEntry : RarEntry, IArchiveEntry
 
     public Stream OpenEntryStream()
     {
+        var readStream = new MultiVolumeReadOnlyStream(Parts.Cast<RarFilePart>());
         RarStream stream;
         if (IsRarV3)
         {
-            stream = new RarStream(
-                archive.UnpackV1.Value,
-                FileHeader,
-                new MultiVolumeReadOnlyStream(Parts.Cast<RarFilePart>())
-            );
+            stream = RarCrcStream.Create(archive.UnpackV1.Value, FileHeader, readStream);
+        }
+        else if (FileHeader.FileCrc?.Length > 5)
+        {
+            stream = RarBLAKE2spStream.Create(archive.UnpackV2017.Value, FileHeader, readStream);
         }
         else
         {
-            stream = new RarStream(
-                archive.UnpackV2017.Value,
-                FileHeader,
-                new MultiVolumeReadOnlyStream(Parts.Cast<RarFilePart>())
-            );
+            stream = RarCrcStream.Create(archive.UnpackV2017.Value, FileHeader, readStream);
         }
 
         stream.Initialize();

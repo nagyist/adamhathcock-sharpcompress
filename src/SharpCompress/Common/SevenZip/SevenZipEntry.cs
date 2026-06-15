@@ -18,6 +18,28 @@ public class SevenZipEntry : Entry
 
     public override long Crc => FilePart.Header.Crc ?? 0;
 
+    internal override ChecksumDescriptor Checksum
+    {
+        get
+        {
+            if (
+                IsDirectory
+                || FilePart.Header.IsAnti
+                || !FilePart.Header.HasStream
+                || !FilePart.Header.Crc.HasValue
+            )
+            {
+                return default;
+            }
+
+            return new ChecksumDescriptor(
+                ChecksumKind.Crc32,
+                FilePart.Header.Crc.Value,
+                IsAvailable: true
+            );
+        }
+    }
+
     public override string? Key => FilePart.Header.Name;
 
     public override string? LinkTarget => null;
