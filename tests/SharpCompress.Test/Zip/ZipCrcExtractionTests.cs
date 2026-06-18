@@ -46,6 +46,34 @@ public class ZipCrcExtractionTests : ArchiveTests
     }
 
     [Fact]
+    public void Zip_Archive_WriteTo_Throws_On_Crc_Mismatch_When_Enabled()
+    {
+        using var zipStream = CreateZipWithInvalidCrc(useDataDescriptor: false);
+        using var archive = ZipArchive.OpenArchive(zipStream);
+        var entry = archive.Entries.Single(e => !e.IsDirectory);
+        using var destination = new MemoryStream();
+
+        var exception = Assert.Throws<InvalidFormatException>(() =>
+            entry.WriteTo(destination, new ExtractionOptions { CheckCrc = true })
+        );
+
+        Assert.Contains(EntryName, exception.Message);
+    }
+
+    [Fact]
+    public void Zip_Archive_WriteTo_Skips_Crc_Mismatch_When_Disabled()
+    {
+        using var zipStream = CreateZipWithInvalidCrc(useDataDescriptor: false);
+        using var archive = ZipArchive.OpenArchive(zipStream);
+        var entry = archive.Entries.Single(e => !e.IsDirectory);
+        using var destination = new MemoryStream();
+
+        entry.WriteTo(destination, new ExtractionOptions { CheckCrc = false });
+
+        Assert.Equal(EntryData, destination.ToArray());
+    }
+
+    [Fact]
     public void Zip_Reader_WriteEntryToFile_Throws_On_Crc_Mismatch()
     {
         using var zipStream = CreateZipWithInvalidCrc(useDataDescriptor: false);
@@ -86,6 +114,34 @@ public class ZipCrcExtractionTests : ArchiveTests
         );
 
         Assert.Contains(EntryName, exception.Message);
+    }
+
+    [Fact]
+    public async Task Zip_Archive_WriteToAsync_Throws_On_Crc_Mismatch_When_Enabled()
+    {
+        using var zipStream = CreateZipWithInvalidCrc(useDataDescriptor: false);
+        using var archive = ZipArchive.OpenArchive(zipStream);
+        var entry = archive.Entries.Single(e => !e.IsDirectory);
+        await using var destination = new MemoryStream();
+
+        var exception = await Assert.ThrowsAsync<InvalidFormatException>(async () =>
+            await entry.WriteToAsync(destination, new ExtractionOptions { CheckCrc = true })
+        );
+
+        Assert.Contains(EntryName, exception.Message);
+    }
+
+    [Fact]
+    public async Task Zip_Archive_WriteToAsync_Skips_Crc_Mismatch_When_Disabled()
+    {
+        using var zipStream = CreateZipWithInvalidCrc(useDataDescriptor: false);
+        using var archive = ZipArchive.OpenArchive(zipStream);
+        var entry = archive.Entries.Single(e => !e.IsDirectory);
+        await using var destination = new MemoryStream();
+
+        await entry.WriteToAsync(destination, new ExtractionOptions { CheckCrc = false });
+
+        Assert.Equal(EntryData, destination.ToArray());
     }
 
     [Fact]

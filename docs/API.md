@@ -132,6 +132,15 @@ using (var archive = ZipArchive.OpenArchive("file.zip"))
     var firstEntry = archive.Entries.First();
     firstEntry.WriteToFile(@"C:\output\file.txt");
 
+    // Extract single entry to a stream with extraction options
+    using (var outputStream = File.Create(@"C:\output\file.txt"))
+    {
+        firstEntry.WriteTo(
+            outputStream,
+            new ExtractionOptions { CheckCrc = false }
+        );
+    }
+
     // Get entry stream
     using (var stream = entry.OpenEntryStream())
     {
@@ -154,6 +163,15 @@ await using (var asyncArchive = await ZipArchive.OpenAsyncArchive("file.zip"))
 {
     await foreach (var entry in asyncArchive.EntriesAsync)
     {
+        await using (var outputStream = File.Create(@"C:\output\" + entry.Key))
+        {
+            await entry.WriteToAsync(
+                outputStream,
+                new ExtractionOptions { CheckCrc = false },
+                cancellationToken: cancellationToken
+            );
+        }
+
         using (var stream = await entry.OpenEntryStreamAsync(cancellationToken))
         {
             // ...

@@ -56,20 +56,7 @@ internal sealed class ChecksumValidationStream : Stream
     }
 #endif
 
-    public override int ReadByte()
-    {
-        var value = _stream.ReadByte();
-        if (value == -1)
-        {
-            Validate();
-        }
-        else
-        {
-            UpdateChecksum([(byte)value]);
-        }
-
-        return value;
-    }
+    public override int ReadByte() => throw new NotSupportedException();
 
     public override async Task<int> ReadAsync(
         byte[] buffer,

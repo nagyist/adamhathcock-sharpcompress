@@ -18,7 +18,19 @@ public static class IArchiveEntryExtensions
         /// <param name="streamToWriteTo">The stream to write the entry content to.</param>
         /// <param name="progress">Optional progress reporter for tracking extraction progress.</param>
         public void WriteTo(Stream streamToWriteTo, IProgress<ProgressReport>? progress = null) =>
-            archiveEntry.WriteTo(streamToWriteTo, null, progress: progress);
+            archiveEntry.WriteTo(streamToWriteTo, bufferSize: null, progress: progress);
+
+        /// <summary>
+        /// Extract entry to the specified stream.
+        /// </summary>
+        /// <param name="streamToWriteTo">The stream to write the entry content to.</param>
+        /// <param name="options">Options for configuring extraction behavior.</param>
+        /// <param name="progress">Optional progress reporter for tracking extraction progress.</param>
+        public void WriteTo(
+            Stream streamToWriteTo,
+            ExtractionOptions options,
+            IProgress<ProgressReport>? progress = null
+        ) => archiveEntry.WriteTo(streamToWriteTo, options.BufferSize, options, progress);
 
         private void WriteTo(
             Stream streamToWriteTo,
@@ -50,8 +62,7 @@ public static class IArchiveEntryExtensions
             Stream streamToWriteTo,
             IProgress<ProgressReport>? progress = null,
             CancellationToken cancellationToken = default
-        )
-        {
+        ) =>
             await archiveEntry
                 .WriteToAsync(
                     streamToWriteTo,
@@ -60,7 +71,29 @@ public static class IArchiveEntryExtensions
                     cancellationToken: cancellationToken
                 )
                 .ConfigureAwait(false);
-        }
+
+        /// <summary>
+        /// Extract entry to the specified stream asynchronously.
+        /// </summary>
+        /// <param name="streamToWriteTo">The stream to write the entry content to.</param>
+        /// <param name="options">Options for configuring extraction behavior.</param>
+        /// <param name="progress">Optional progress reporter for tracking extraction progress.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        public async ValueTask WriteToAsync(
+            Stream streamToWriteTo,
+            ExtractionOptions options,
+            IProgress<ProgressReport>? progress = null,
+            CancellationToken cancellationToken = default
+        ) =>
+            await archiveEntry
+                .WriteToAsync(
+                    streamToWriteTo,
+                    options.BufferSize,
+                    options,
+                    progress,
+                    cancellationToken
+                )
+                .ConfigureAwait(false);
 
         private async ValueTask WriteToAsync(
             Stream streamToWriteTo,
