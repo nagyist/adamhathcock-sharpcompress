@@ -249,15 +249,15 @@ GNU tar uses base-256 binary fields for out-of-range numeric values. SharpCompre
 
 Wrapper detection is defined in `TarWrapper.Wrappers`. Detection is content-based: wrapper detection is followed by a tar-header probe of the decompressed payload.
 
-| Wrapper | Extensions | Read | Write |
-| ------- | ---------- | ---- | ----- |
-| Plain tar | `tar` | Yes | Yes |
-| Tar + GZip | `tar.gz`, `taz`, `tgz` | Yes | Yes |
-| Tar + BZip2 | `tar.bz2`, `tb2`, `tbz`, `tbz2`, `tz2` | Yes | Yes |
-| Tar + LZip | `tar.lz` | Yes | Yes |
-| Tar + XZ | `tar.xz`, `txz` | Yes | No |
-| Tar + ZStandard | `tar.zst`, `tar.zstd`, `tzst`, `tzstd` | Yes | No |
-| Tar + LZW compress | `tar.Z`, `tZ`, `taZ` | Yes | No |
+| Wrapper | Extensions | Archive Read | Reader Read | Write |
+| ------- | ---------- | ------------ | ----------- | ----- |
+| Plain tar | `tar` | Yes | Yes | Yes |
+| Tar + GZip | `tar.gz`, `taz`, `tgz` | No | Yes | Yes |
+| Tar + BZip2 | `tar.bz2`, `tb2`, `tbz`, `tbz2`, `tz2` | No | Yes | Yes |
+| Tar + LZip | `tar.lz` | No | Yes | Yes |
+| Tar + XZ | `tar.xz`, `txz` | No | Yes | No |
+| Tar + ZStandard | `tar.zst`, `tar.zstd`, `tzst`, `tzstd` | No | Yes | No |
+| Tar + LZW compress | `tar.Z`, `tZ`, `taZ` | No | Yes | No |
 
 Writer support currently accepts only these compression types:
 
@@ -278,9 +278,9 @@ Reader API:
 
 Archive API:
 
-- `TarArchive.OpenArchive(Stream)` and `TarArchive.OpenAsyncArchive(Stream)` require seekable streams.
+- `TarArchive.OpenArchive(Stream)` and `TarArchive.OpenAsyncArchive(Stream)` require seekable raw tar streams.
 - File/path overloads own the opened file stream.
-- Compressed tar archive access follows streaming semantics over the decompressed stream rather than full random-access semantics.
+- Compressed tar wrappers are supported through `TarReader`, not `TarArchive`.
 
 Parsed metadata surfaced through entries includes:
 
@@ -323,7 +323,7 @@ Keep these limitations explicit in code comments, docs, and tests:
 - No write support for `tar.xz`, `tar.zst`, or `tar.Z`.
 - PAX read support is limited to `path`, `linkpath`, `size`, `mtime`, `uid`, `gid`, and `mode`.
 - Unknown PAX keys are ignored.
-- Stream-based `TarArchive` open requires seekable input.
+- Stream-based `TarArchive` open requires seekable raw tar input.
 
 ## Test Fixtures
 

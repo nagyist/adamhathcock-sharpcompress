@@ -73,7 +73,7 @@ using (var archive = ArchiveFactory.OpenArchive(parts))
 }
 ```
 
-`ArchiveInformation.SupportsRandomAccess` is `true` when the detected format supports `IArchive` random access. It is `false` for reader-only formats such as Ace, Arc, Arj, and standalone LZW, where `ReaderFactory.OpenReader` should be used instead.
+`ArchiveInformation.SupportsRandomAccess` is `true` when the detected format supports `IArchive` random access. It is `false` for reader-only formats such as Ace, Arc, Arj, and standalone LZW, where `ReaderFactory.OpenReader` should be used instead. Compressed tar wrappers such as `.tar.gz` and `.tar.xz` are also reader-only; use `ReaderFactory.OpenReader` or `TarReader.OpenReader` for those files.
 
 ### Creating Archives
 

@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using AwesomeAssertions;
-using SharpCompress.Archives.Tar;
 using SharpCompress.Common;
 using SharpCompress.Common.Options;
 using SharpCompress.Compressors;
@@ -524,7 +523,7 @@ public class CompressionProviderTests
     }
 
     [Fact]
-    public void TarArchive_OpenArchive_UsesCustomGZipProvider()
+    public void TarReader_OpenReader_UsesCustomGZipProvider()
     {
         using var archiveStream = new MemoryStream();
         using (
@@ -543,9 +542,9 @@ public class CompressionProviderTests
         var readOptions = ReaderOptions.ForExternalStream.WithProviders(registry);
 
         archiveStream.Position = 0;
-        using var archive = TarArchive.OpenArchive(archiveStream, readOptions);
-        var entry = archive.Entries.First(x => !x.IsDirectory);
-        using var entryStream = entry.OpenEntryStream();
+        using var reader = TarReader.OpenReader(archiveStream, readOptions);
+        reader.MoveToNextEntry().Should().BeTrue();
+        using var entryStream = reader.OpenEntryStream();
         using var resultStream = new MemoryStream();
         entryStream.CopyTo(resultStream);
 
@@ -553,7 +552,7 @@ public class CompressionProviderTests
     }
 
     [Fact]
-    public async Task TarArchive_OpenAsyncArchive_UsesCustomGZipProvider()
+    public async Task TarReader_OpenAsyncReader_UsesCustomGZipProvider()
     {
         using var archiveStream = new MemoryStream();
         using (
@@ -572,19 +571,11 @@ public class CompressionProviderTests
         var readOptions = ReaderOptions.ForExternalStream.WithProviders(registry);
 
         archiveStream.Position = 0;
-        await using var archive = await TarArchive.OpenAsyncArchive(archiveStream, readOptions);
-        await foreach (var entry in archive.EntriesAsync)
-        {
-            if (entry.IsDirectory)
-            {
-                continue;
-            }
-
-            using var entryStream = await entry.OpenEntryStreamAsync();
-            using var resultStream = new MemoryStream();
-            await entryStream.CopyToAsync(resultStream);
-            break;
-        }
+        await using var reader = await TarReader.OpenAsyncReader(archiveStream, readOptions);
+        (await reader.MoveToNextEntryAsync()).Should().BeTrue();
+        using var entryStream = await reader.OpenEntryStreamAsync();
+        using var resultStream = new MemoryStream();
+        await entryStream.CopyToAsync(resultStream);
 
         trackingProvider.AsyncDecompressionCalls.Should().BeGreaterThan(0);
     }

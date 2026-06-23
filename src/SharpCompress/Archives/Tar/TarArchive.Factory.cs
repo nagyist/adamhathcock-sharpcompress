@@ -53,12 +53,8 @@ public partial class TarArchive
             i => i < files.Count ? files[i] : null,
             readerOptions ?? ReaderOptions.ForFilePath
         );
-        var compressionType = TarFactory.GetCompressionType(
-            sourceStream,
-            sourceStream.ReaderOptions
-        );
-        sourceStream.Seek(0, SeekOrigin.Begin);
-        return new TarArchive(sourceStream, compressionType);
+        EnsureRawTarFile(sourceStream);
+        return new TarArchive(sourceStream);
     }
 
     public static IWritableArchive<TarWriterOptions> OpenArchive(
@@ -72,12 +68,8 @@ public partial class TarArchive
             i => i < strms.Count ? strms[i] : null,
             readerOptions ?? ReaderOptions.ForExternalStream
         );
-        var compressionType = TarFactory.GetCompressionType(
-            sourceStream,
-            sourceStream.ReaderOptions
-        );
-        sourceStream.Seek(0, SeekOrigin.Begin);
-        return new TarArchive(sourceStream, compressionType);
+        EnsureRawTarFile(sourceStream);
+        return new TarArchive(sourceStream);
     }
 
     public static IWritableArchive<TarWriterOptions> OpenArchive(
@@ -104,11 +96,8 @@ public partial class TarArchive
             i => null,
             readerOptions ?? ReaderOptions.ForExternalStream
         );
-        var compressionType = await TarFactory
-            .GetCompressionTypeAsync(sourceStream, sourceStream.ReaderOptions, cancellationToken)
-            .ConfigureAwait(false);
-        sourceStream.Seek(0, SeekOrigin.Begin);
-        return new TarArchive(sourceStream, compressionType);
+        await EnsureRawTarFileAsync(sourceStream, cancellationToken).ConfigureAwait(false);
+        return new TarArchive(sourceStream);
     }
 
     public static ValueTask<IWritableAsyncArchive<TarWriterOptions>> OpenAsyncArchive(
@@ -132,11 +121,8 @@ public partial class TarArchive
         fileInfo.NotNull(nameof(fileInfo));
         readerOptions ??= ReaderOptions.ForFilePath;
         var sourceStream = new SourceStream(fileInfo, i => null, readerOptions);
-        var compressionType = await TarFactory
-            .GetCompressionTypeAsync(sourceStream, sourceStream.ReaderOptions, cancellationToken)
-            .ConfigureAwait(false);
-        sourceStream.Seek(0, SeekOrigin.Begin);
-        return new TarArchive(sourceStream, compressionType);
+        await EnsureRawTarFileAsync(sourceStream, cancellationToken).ConfigureAwait(false);
+        return new TarArchive(sourceStream);
     }
 
     public static async ValueTask<IWritableAsyncArchive<TarWriterOptions>> OpenAsyncArchive(
@@ -152,11 +138,8 @@ public partial class TarArchive
             i => i < strms.Count ? strms[i] : null,
             readerOptions ?? ReaderOptions.ForExternalStream
         );
-        var compressionType = await TarFactory
-            .GetCompressionTypeAsync(sourceStream, sourceStream.ReaderOptions, cancellationToken)
-            .ConfigureAwait(false);
-        sourceStream.Seek(0, SeekOrigin.Begin);
-        return new TarArchive(sourceStream, compressionType);
+        await EnsureRawTarFileAsync(sourceStream, cancellationToken).ConfigureAwait(false);
+        return new TarArchive(sourceStream);
     }
 
     public static async ValueTask<IWritableAsyncArchive<TarWriterOptions>> OpenAsyncArchive(
@@ -173,11 +156,8 @@ public partial class TarArchive
             i => i < files.Count ? files[i] : null,
             readerOptions ?? ReaderOptions.ForFilePath
         );
-        var compressionType = await TarFactory
-            .GetCompressionTypeAsync(sourceStream, sourceStream.ReaderOptions, cancellationToken)
-            .ConfigureAwait(false);
-        sourceStream.Seek(0, SeekOrigin.Begin);
-        return new TarArchive(sourceStream, compressionType);
+        await EnsureRawTarFileAsync(sourceStream, cancellationToken).ConfigureAwait(false);
+        return new TarArchive(sourceStream);
     }
 
     public static bool IsTarFile(string filePath) => IsTarFile(new FileInfo(filePath));
@@ -245,6 +225,29 @@ public partial class TarArchive
 
     public static ValueTask<IWritableAsyncArchive<TarWriterOptions>> CreateAsyncArchive() =>
         new(new TarArchive());
+
+    private static void EnsureRawTarFile(Stream stream)
+    {
+        stream.Seek(0, SeekOrigin.Begin);
+        if (!IsTarFile(stream))
+        {
+            throw new InvalidFormatException("Not a tar file.");
+        }
+        stream.Seek(0, SeekOrigin.Begin);
+    }
+
+    private static async ValueTask EnsureRawTarFileAsync(
+        Stream stream,
+        CancellationToken cancellationToken
+    )
+    {
+        stream.Seek(0, SeekOrigin.Begin);
+        if (!await IsTarFileAsync(stream, cancellationToken).ConfigureAwait(false))
+        {
+            throw new InvalidFormatException("Not a tar file.");
+        }
+        stream.Seek(0, SeekOrigin.Begin);
+    }
 
     private static bool IsDefined(EntryType value)
     {

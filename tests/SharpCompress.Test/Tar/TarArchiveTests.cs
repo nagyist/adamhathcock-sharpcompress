@@ -487,13 +487,20 @@ public class TarArchiveTests : ArchiveTests
     }
 
     [Fact]
-    public void TarArchiveStreamRead_Autodetect_CompressedTar()
+    public void ArchiveFactoryStreamRead_Autodetect_CompressedTar_AsGZip()
     {
         using Stream stream = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, "Tar.tar.gz"));
         using var archive = ArchiveFactory.OpenArchive(stream);
 
-        Assert.Equal(ArchiveType.Tar, archive.Type);
-        Assert.NotEmpty(archive.Entries);
+        Assert.Equal(ArchiveType.GZip, archive.Type);
+    }
+
+    [Fact]
+    public void TarArchiveOpenArchive_RejectsCompressedTar()
+    {
+        using Stream stream = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, "Tar.tar.gz"));
+
+        Assert.Throws<InvalidFormatException>(() => TarArchive.OpenArchive(stream));
     }
 
     [Fact]

@@ -36,6 +36,16 @@ public class TarArchiveAsyncTests : ArchiveTests
     }
 
     [Fact]
+    public async ValueTask TarArchiveOpenAsyncArchive_RejectsCompressedTar()
+    {
+        using Stream stream = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, "Tar.tar.gz"));
+
+        await Assert.ThrowsAsync<InvalidFormatException>(async () =>
+            await TarArchive.OpenAsyncArchive(stream)
+        );
+    }
+
+    [Fact]
     public async ValueTask TarArchiveOpenAsyncStream_Throws_On_Unreadable_Stream()
     {
         using var stream = new TestStream(new MemoryStream(), false, true, true);

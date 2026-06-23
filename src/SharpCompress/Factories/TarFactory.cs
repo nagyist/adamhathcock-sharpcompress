@@ -50,28 +50,7 @@ public class TarFactory
     /// <inheritdoc/>
     public override bool IsArchive(Stream stream, ReaderOptions readerOptions)
     {
-        var providers = readerOptions.Providers;
-        var sharpCompressStream = new SharpCompressStream(stream);
-        sharpCompressStream.StartRecording(TarWrapper.MaximumRewindBufferSize);
-        foreach (var wrapper in TarWrapper.Wrappers)
-        {
-            sharpCompressStream.Rewind();
-            if (wrapper.IsMatch(sharpCompressStream))
-            {
-                sharpCompressStream.Rewind();
-                var decompressedStream = CreateProbeDecompressionStream(
-                    sharpCompressStream,
-                    wrapper.CompressionType
-                );
-                if (TarArchive.IsTarFile(decompressedStream))
-                {
-                    sharpCompressStream.Rewind();
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return TarArchive.IsTarFile(stream);
     }
 
     /// <inheritdoc/>
@@ -81,38 +60,7 @@ public class TarFactory
         CancellationToken cancellationToken = default
     )
     {
-        var providers = readerOptions.Providers;
-        var sharpCompressStream = new SharpCompressStream(stream);
-        sharpCompressStream.StartRecording(TarWrapper.MaximumRewindBufferSize);
-        foreach (var wrapper in TarWrapper.Wrappers)
-        {
-            sharpCompressStream.Rewind();
-            if (
-                await wrapper
-                    .IsMatchAsync(sharpCompressStream, cancellationToken)
-                    .ConfigureAwait(false)
-            )
-            {
-                sharpCompressStream.Rewind();
-                var decompressedStream = await CreateProbeDecompressionStreamAsync(
-                        sharpCompressStream,
-                        wrapper.CompressionType,
-                        cancellationToken: cancellationToken
-                    )
-                    .ConfigureAwait(false);
-                if (
-                    await TarArchive
-                        .IsTarFileAsync(decompressedStream, cancellationToken)
-                        .ConfigureAwait(false)
-                )
-                {
-                    sharpCompressStream.Rewind();
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return await TarArchive.IsTarFileAsync(stream, cancellationToken).ConfigureAwait(false);
     }
 
     #endregion
@@ -232,6 +180,44 @@ public class TarFactory
             }
         }
         throw new InvalidFormatException("Not a tar file.");
+    }
+
+    internal override bool TryOpenReader(
+        SharpCompressStream stream,
+        ReaderOptions options,
+        out IReader? reader
+    )
+    {
+        try
+        {
+            stream.Rewind();
+            reader = OpenReader(stream, options);
+            return true;
+        }
+        catch (InvalidFormatException)
+        {
+            stream.Rewind();
+            reader = null;
+            return false;
+        }
+    }
+
+    internal override async ValueTask<IAsyncReader?> TryOpenReaderAsync(
+        SharpCompressStream stream,
+        ReaderOptions options,
+        CancellationToken cancellationToken = default
+    )
+    {
+        try
+        {
+            stream.Rewind();
+            return await OpenAsyncReader(stream, options, cancellationToken).ConfigureAwait(false);
+        }
+        catch (InvalidFormatException)
+        {
+            stream.Rewind();
+            return null;
+        }
     }
 
     #region IArchiveFactory
@@ -378,8 +364,7 @@ public class TarFactory
             }
         }
 
-        sharpCompressStream.Rewind();
-        return (IAsyncReader)TarReader.OpenReader(sharpCompressStream, options);
+        throw new InvalidFormatException("Not a tar file.");
     }
 
     #endregion

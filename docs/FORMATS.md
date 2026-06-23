@@ -16,12 +16,12 @@
 | Rar                | Rar                                                                 | Decompress          | RarArchive      | RarReader  | N/A             |
 | Zip (2)            | None, Shrink, Reduce, Implode, DEFLATE, Deflate64, BZip2, LZMA, PPMd, ZStandard, XZ | Both                | ZipArchive      | ZipReader  | ZipWriter       |
 | Tar                | None                                                                | Both                | TarArchive      | TarReader  | TarWriter (3)   |
-| Tar.GZip           | DEFLATE                                                             | Both                | TarArchive      | TarReader  | TarWriter (3)   |
-| Tar.BZip2          | BZip2                                                               | Both                | TarArchive      | TarReader  | TarWriter (3)   |
-| Tar.Zstandard      | ZStandard                                                           | Decompress          | TarArchive      | TarReader  | N/A             |
-| Tar.LZip           | LZMA                                                                | Both                | TarArchive      | TarReader  | TarWriter (3)   |
-| Tar.XZ             | LZMA2                                                               | Decompress          | TarArchive      | TarReader  | N/A             |
-| Tar.LZW            | LZW                                                                 | Decompress          | TarArchive      | TarReader  | N/A             |
+| Tar.GZip           | DEFLATE                                                             | Both                | N/A             | TarReader  | TarWriter (3)   |
+| Tar.BZip2          | BZip2                                                               | Both                | N/A             | TarReader  | TarWriter (3)   |
+| Tar.Zstandard      | ZStandard                                                           | Decompress          | N/A             | TarReader  | N/A             |
+| Tar.LZip           | LZMA                                                                | Both                | N/A             | TarReader  | TarWriter (3)   |
+| Tar.XZ             | LZMA2                                                               | Decompress          | N/A             | TarReader  | N/A             |
+| Tar.LZW            | LZW                                                                 | Decompress          | N/A             | TarReader  | N/A             |
 | GZip (single file) | DEFLATE                                                             | Both                | GZipArchive     | GZipReader | GZipWriter      |
 | 7Zip (4)           | LZMA, LZMA2, BZip2, PPMd, BCJ, BCJ2, Deflate                        | Both                | SevenZipArchive | N/A        | SevenZipWriter  |
 
@@ -31,7 +31,7 @@
 4. The 7Zip format doesn't allow for reading as a forward-only stream, so 7Zip read support is only through the Archive API. Writing is supported through SevenZipWriter for non-solid archives with LZMA/LZMA2 and requires a seekable output stream. See [7Zip Format Notes](#7zip-format-notes) for details on async extraction behavior.
 5. LZip has no support for extra data like the file name or timestamp. There is a default filename used when looking at the entry Key on the archive.
 
-`ArchiveFactory.GetArchiveInformation(...).SupportsRandomAccess` is `true` when the detected format has an Archive API in this table. It is `false` for reader-only formats such as Ace, Arc, Arj, and standalone LZW.
+`ArchiveFactory.GetArchiveInformation(...).SupportsRandomAccess` is `true` when the detected format has an Archive API in this table. It is `false` for reader-only formats such as Ace, Arc, Arj, and standalone LZW. Compressed tar wrappers are supported by `ReaderFactory`/`TarReader`, not by `ArchiveFactory`/`TarArchive`.
 
 ### Zip Format Notes
 
