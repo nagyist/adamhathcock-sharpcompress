@@ -189,64 +189,77 @@ internal sealed partial class StreamingZipHeaderFactory
                         .ReadUInt32Async(_cancellationToken)
                         .ConfigureAwait(false);
 
-                    _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // version
-                    _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // flags
-                    _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // compressionMethod
-                    _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // lastModifiedDate
-                    _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // lastModifiedTime
-
-                    var crc = await _reader
-                        .ReadUInt32Async(_cancellationToken)
-                        .ConfigureAwait(false);
-
-                    if (crc == POST_DATA_DESCRIPTOR)
+                    // A Zip64 entry that does not use a post-data descriptor stores its real CRC
+                    // and sizes in the local header's Zip64 extra field, so a header signature
+                    // (the next local entry, or the central directory) follows the data directly.
+                    // In that case the entry's metadata is already correct and must not be
+                    // overwritten with bytes read from the following header. We have only consumed
+                    // the 4-byte signature, so fall through and parse this header normally. Because
+                    // no seek-back is required here, this also works for non-seekable streams.
+                    if (headerBytes == 0x04034b50 || headerBytes == 0x02014b50)
                     {
-                        crc = await _reader
-                            .ReadUInt32Async(_cancellationToken)
-                            .ConfigureAwait(false);
-                    }
-                    lastEntryHeader.Crc = crc;
-                    lastEntryHeader.IsCrcAvailable = true;
-
-                    // The DataDescriptor can be either 64bit or 32bit
-                    var compressedSize = await _reader
-                        .ReadUInt32Async(_cancellationToken)
-                        .ConfigureAwait(false);
-                    var uncompressedSize = await _reader
-                        .ReadUInt32Async(_cancellationToken)
-                        .ConfigureAwait(false);
-
-                    // Check if we have header or 64bit DataDescriptor
-                    var testHeader = !(headerBytes == 0x04034b50 || headerBytes == 0x02014b50);
-
-                    var test64Bit = ((long)uncompressedSize << 32) | compressedSize;
-                    if (test64Bit == lastEntryHeader.CompressedSize && testHeader)
-                    {
-                        lastEntryHeader.UncompressedSize =
-                            (
-                                (long)
-                                    await _reader
-                                        .ReadUInt32Async(_cancellationToken)
-                                        .ConfigureAwait(false) << 32
-                            ) | headerBytes;
-                        headerBytes = await _reader
-                            .ReadUInt32Async(_cancellationToken)
-                            .ConfigureAwait(false);
+                        if (pos.HasValue)
+                        {
+                            lastEntryHeader.DataStartPosition =
+                                pos - lastEntryHeader.CompressedSize;
+                        }
                     }
                     else
                     {
-                        lastEntryHeader.UncompressedSize = uncompressedSize;
-                    }
+                        // A data descriptor follows. Recover the CRC and sizes from it; the
+                        // descriptor can carry either 32-bit or 64-bit sizes.
+                        _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // version
+                        _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // flags
+                        _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // compressionMethod
+                        _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // lastModifiedDate
+                        _ = await _reader.ReadUInt16Async(_cancellationToken).ConfigureAwait(false); // lastModifiedTime
 
-                    if (pos.HasValue)
-                    {
-                        lastEntryHeader.DataStartPosition = pos - lastEntryHeader.CompressedSize;
+                        var crc = await _reader
+                            .ReadUInt32Async(_cancellationToken)
+                            .ConfigureAwait(false);
 
-                        // For SeekableSharpCompressStream, seek back to just after the local header signature.
-                        // Plain SharpCompressStream cannot seek to arbitrary positions, so we skip this.
-                        // 4 = First 4 bytes of the entry header (i.e. 50 4B 03 04)
-                        if (_sharpCompressStream is SeekableSharpCompressStream)
+                        if (crc == POST_DATA_DESCRIPTOR)
                         {
+                            crc = await _reader
+                                .ReadUInt32Async(_cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        lastEntryHeader.Crc = crc;
+                        lastEntryHeader.IsCrcAvailable = true;
+
+                        // The DataDescriptor can be either 64bit or 32bit
+                        var compressedSize = await _reader
+                            .ReadUInt32Async(_cancellationToken)
+                            .ConfigureAwait(false);
+                        var uncompressedSize = await _reader
+                            .ReadUInt32Async(_cancellationToken)
+                            .ConfigureAwait(false);
+
+                        var test64Bit = ((long)uncompressedSize << 32) | compressedSize;
+                        if (test64Bit == lastEntryHeader.CompressedSize)
+                        {
+                            lastEntryHeader.UncompressedSize =
+                                (
+                                    (long)
+                                        await _reader
+                                            .ReadUInt32Async(_cancellationToken)
+                                            .ConfigureAwait(false) << 32
+                                ) | headerBytes;
+                            headerBytes = await _reader
+                                .ReadUInt32Async(_cancellationToken)
+                                .ConfigureAwait(false);
+                        }
+                        else
+                        {
+                            lastEntryHeader.UncompressedSize = uncompressedSize;
+                        }
+
+                        if (pos.HasValue)
+                        {
+                            lastEntryHeader.DataStartPosition =
+                                pos - lastEntryHeader.CompressedSize;
+
+                            // 4 = First 4 bytes of the entry header (i.e. 50 4B 03 04)
                             _sharpCompressStream.Position = pos.Value + 4;
                         }
                     }

@@ -109,46 +109,63 @@ internal partial class StreamingZipHeaderFactory : ZipHeaderFactory
 
                     headerBytes = reader.ReadUInt32();
 
-                    var version = reader.ReadUInt16();
-                    var flags = (HeaderFlags)reader.ReadUInt16();
-                    var compressionMethod = (ZipCompressionMethod)reader.ReadUInt16();
-                    var lastModifiedDate = reader.ReadUInt16();
-                    var lastModifiedTime = reader.ReadUInt16();
-
-                    var crc = reader.ReadUInt32();
-
-                    if (crc == POST_DATA_DESCRIPTOR)
+                    // A Zip64 entry that does not use a post-data descriptor stores its real CRC
+                    // and sizes in the local header's Zip64 extra field, so a header signature
+                    // (the next local entry, or the central directory) follows the data directly.
+                    // In that case the entry's metadata is already correct and must not be
+                    // overwritten with bytes read from the following header. We have only consumed
+                    // the 4-byte signature, so fall through and parse this header normally.
+                    if (headerBytes == 0x04034b50 || headerBytes == 0x02014b50)
                     {
-                        crc = reader.ReadUInt32();
-                    }
-                    _lastEntryHeader.Crc = crc;
-                    _lastEntryHeader.IsCrcAvailable = true;
-
-                    // The DataDescriptor can be either 64bit or 32bit
-                    var compressed_size = reader.ReadUInt32();
-                    var uncompressed_size = reader.ReadUInt32();
-
-                    // Check if we have header or 64bit DataDescriptor
-                    var test_header = !(headerBytes == 0x04034b50 || headerBytes == 0x02014b50);
-
-                    var test_64bit = ((long)uncompressed_size << 32) | compressed_size;
-                    if (test_64bit == _lastEntryHeader.CompressedSize && test_header)
-                    {
-                        _lastEntryHeader.UncompressedSize =
-                            ((long)reader.ReadUInt32() << 32) | headerBytes;
-                        headerBytes = reader.ReadUInt32();
+                        if (pos.HasValue)
+                        {
+                            _lastEntryHeader.DataStartPosition =
+                                pos - _lastEntryHeader.CompressedSize;
+                        }
                     }
                     else
                     {
-                        _lastEntryHeader.UncompressedSize = uncompressed_size;
-                    }
+                        // A data descriptor follows. Recover the CRC and sizes from it; the
+                        // descriptor can carry either 32-bit or 64-bit sizes.
+                        _ = reader.ReadUInt16(); // version
+                        _ = reader.ReadUInt16(); // flags
+                        _ = reader.ReadUInt16(); // compressionMethod
+                        _ = reader.ReadUInt16(); // lastModifiedDate
+                        _ = reader.ReadUInt16(); // lastModifiedTime
 
-                    if (pos.HasValue)
-                    {
-                        _lastEntryHeader.DataStartPosition = pos - _lastEntryHeader.CompressedSize;
+                        var crc = reader.ReadUInt32();
 
-                        // 4 = First 4 bytes of the entry header (i.e. 50 4B 03 04)
-                        sharpCompressStream.Position = pos.Value + 4;
+                        if (crc == POST_DATA_DESCRIPTOR)
+                        {
+                            crc = reader.ReadUInt32();
+                        }
+                        _lastEntryHeader.Crc = crc;
+                        _lastEntryHeader.IsCrcAvailable = true;
+
+                        // The DataDescriptor can be either 64bit or 32bit
+                        var compressed_size = reader.ReadUInt32();
+                        var uncompressed_size = reader.ReadUInt32();
+
+                        var test_64bit = ((long)uncompressed_size << 32) | compressed_size;
+                        if (test_64bit == _lastEntryHeader.CompressedSize)
+                        {
+                            _lastEntryHeader.UncompressedSize =
+                                ((long)reader.ReadUInt32() << 32) | headerBytes;
+                            headerBytes = reader.ReadUInt32();
+                        }
+                        else
+                        {
+                            _lastEntryHeader.UncompressedSize = uncompressed_size;
+                        }
+
+                        if (pos.HasValue)
+                        {
+                            _lastEntryHeader.DataStartPosition =
+                                pos - _lastEntryHeader.CompressedSize;
+
+                            // 4 = First 4 bytes of the entry header (i.e. 50 4B 03 04)
+                            sharpCompressStream.Position = pos.Value + 4;
+                        }
                     }
                 }
                 else
