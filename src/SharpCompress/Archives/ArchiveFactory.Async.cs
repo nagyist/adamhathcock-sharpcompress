@@ -17,7 +17,11 @@ public static partial class ArchiveFactory
     )
     {
         readerOptions ??= ReaderOptions.ForExternalStream;
-        var factory = await FindFactoryAsync<IArchiveFactory>(stream, cancellationToken)
+        var factory = await FindFactoryAsync<IArchiveFactory>(
+                stream,
+                readerOptions,
+                cancellationToken
+            )
             .ConfigureAwait(false);
         return await factory
             .OpenAsyncArchive(stream, readerOptions, cancellationToken)
@@ -46,7 +50,7 @@ public static partial class ArchiveFactory
     {
         options ??= ReaderOptions.ForFilePath;
 
-        var factory = await FindFactoryAsync<IArchiveFactory>(fileInfo, cancellationToken)
+        var factory = await FindFactoryAsync<IArchiveFactory>(fileInfo, options, cancellationToken)
             .ConfigureAwait(false);
         return await factory
             .OpenAsyncArchive(fileInfo, options, cancellationToken)
@@ -76,7 +80,11 @@ public static partial class ArchiveFactory
         fileInfo.NotNull(nameof(fileInfo));
         options ??= ReaderOptions.ForFilePath;
 
-        var factory = await FindFactoryAsync<IMultiArchiveFactory>(fileInfo, cancellationToken)
+        var factory = await FindFactoryAsync<IMultiArchiveFactory>(
+                fileInfo,
+                options,
+                cancellationToken
+            )
             .ConfigureAwait(false);
         return await factory
             .OpenAsyncArchive(filesArray, options, cancellationToken)
@@ -101,7 +109,11 @@ public static partial class ArchiveFactory
         firstStream.NotNull(nameof(firstStream));
         options ??= ReaderOptions.ForExternalStream;
 
-        var factory = await FindFactoryAsync<IMultiArchiveFactory>(firstStream, cancellationToken)
+        var factory = await FindFactoryAsync<IMultiArchiveFactory>(
+                firstStream,
+                options,
+                cancellationToken
+            )
             .ConfigureAwait(false);
         return await factory
             .OpenAsyncArchive(streamsArray, options, cancellationToken)

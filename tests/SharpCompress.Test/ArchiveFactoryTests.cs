@@ -407,18 +407,8 @@ public class ArchiveFactoryTests : TestBase
     [InlineData("Tar.LongPathsWithLongNameExtension.tar", ArchiveType.Tar, true)]
     [InlineData("Tar.mod.tar", ArchiveType.Tar, true)]
     [InlineData("Tar.noEmptyDirs.tar", ArchiveType.Tar, true)]
-    [InlineData("Tar.noEmptyDirs.tar.bz2", ArchiveType.Tar, true)]
-    [InlineData("Tar.noEmptyDirs.tar.lz", ArchiveType.Tar, true)]
-    [InlineData("Tar.oldgnu.tar.gz", ArchiveType.Tar, true)]
     [InlineData("Tar.tar", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.Z", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.bz2", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.gz", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.lz", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.xz", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.zst", ArchiveType.Tar, true)]
     [InlineData("TarCorrupted.tar", ArchiveType.Tar, true)]
-    [InlineData("TarWithSymlink.tar.gz", ArchiveType.Tar, true)]
     [InlineData("WinZip26.zip", ArchiveType.Zip, true)]
     [InlineData("WinZip26_BZip2.zipx", ArchiveType.Zip, true)]
     [InlineData("WinZip26_LZMA.zipx", ArchiveType.Zip, true)]
@@ -574,18 +564,8 @@ public class ArchiveFactoryTests : TestBase
     [InlineData("Tar.LongPathsWithLongNameExtension.tar", ArchiveType.Tar, true)]
     [InlineData("Tar.mod.tar", ArchiveType.Tar, true)]
     [InlineData("Tar.noEmptyDirs.tar", ArchiveType.Tar, true)]
-    [InlineData("Tar.noEmptyDirs.tar.bz2", ArchiveType.Tar, true)]
-    [InlineData("Tar.noEmptyDirs.tar.lz", ArchiveType.Tar, true)]
-    [InlineData("Tar.oldgnu.tar.gz", ArchiveType.Tar, true)]
     [InlineData("Tar.tar", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.Z", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.bz2", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.gz", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.lz", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.xz", ArchiveType.Tar, true)]
-    [InlineData("Tar.tar.zst", ArchiveType.Tar, true)]
     [InlineData("TarCorrupted.tar", ArchiveType.Tar, true)]
-    [InlineData("TarWithSymlink.tar.gz", ArchiveType.Tar, true)]
     [InlineData("WinZip26.zip", ArchiveType.Zip, true)]
     [InlineData("WinZip26_BZip2.zipx", ArchiveType.Zip, true)]
     [InlineData("WinZip26_LZMA.zipx", ArchiveType.Zip, true)]
@@ -670,6 +650,74 @@ public class ArchiveFactoryTests : TestBase
     public async ValueTask GetArchiveInformationAsync_ReturnsNull_ForNonArchive()
     {
         using var stream = new MemoryStream(Encoding.ASCII.GetBytes("not an archive"));
+
+        var info = await ArchiveFactory.GetArchiveInformationAsync(stream);
+
+        Assert.Null(info);
+    }
+
+    [Theory]
+    [InlineData("Tar.tar.gz")]
+    [InlineData("Tar.tar.bz2")]
+    [InlineData("Tar.tar.lz")]
+    [InlineData("Tar.tar.xz")]
+    [InlineData("Tar.tar.zst")]
+    [InlineData("Tar.tar.Z")]
+    public void IsArchive_ReturnsFalse_ForCompressedTar(string archiveName)
+    {
+        using var stream = File.OpenRead(GetTestArchivePath(archiveName));
+
+        var isArchive = ArchiveFactory.IsArchive(stream, out var archiveType);
+
+        Assert.False(isArchive);
+        Assert.Null(archiveType);
+    }
+
+    [Theory]
+    [InlineData("Tar.tar.gz")]
+    [InlineData("Tar.tar.bz2")]
+    [InlineData("Tar.tar.lz")]
+    [InlineData("Tar.tar.xz")]
+    [InlineData("Tar.tar.zst")]
+    [InlineData("Tar.tar.Z")]
+    public async ValueTask IsArchiveAsync_ReturnsFalse_ForCompressedTar(string archiveName)
+    {
+        using var stream = File.OpenRead(GetTestArchivePath(archiveName));
+
+        var (isArchive, archiveType) = await ArchiveFactory.IsArchiveAsync(stream);
+
+        Assert.False(isArchive);
+        Assert.Null(archiveType);
+    }
+
+    [Theory]
+    [InlineData("Tar.tar.gz")]
+    [InlineData("Tar.tar.bz2")]
+    [InlineData("Tar.tar.lz")]
+    [InlineData("Tar.tar.xz")]
+    [InlineData("Tar.tar.zst")]
+    [InlineData("Tar.tar.Z")]
+    public void GetArchiveInformation_ReturnsNull_ForCompressedTar(string archiveName)
+    {
+        using var stream = File.OpenRead(GetTestArchivePath(archiveName));
+
+        var info = ArchiveFactory.GetArchiveInformation(stream);
+
+        Assert.Null(info);
+    }
+
+    [Theory]
+    [InlineData("Tar.tar.gz")]
+    [InlineData("Tar.tar.bz2")]
+    [InlineData("Tar.tar.lz")]
+    [InlineData("Tar.tar.xz")]
+    [InlineData("Tar.tar.zst")]
+    [InlineData("Tar.tar.Z")]
+    public async ValueTask GetArchiveInformationAsync_ReturnsNull_ForCompressedTar(
+        string archiveName
+    )
+    {
+        using var stream = File.OpenRead(GetTestArchivePath(archiveName));
 
         var info = await ArchiveFactory.GetArchiveInformationAsync(stream);
 

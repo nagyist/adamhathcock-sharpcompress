@@ -2,8 +2,11 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using SharpCompress.Archives.Tar;
 using SharpCompress.Common;
 using SharpCompress.Factories;
+using SharpCompress.IO;
+using SharpCompress.Providers;
 using SharpCompress.Readers;
 
 namespace SharpCompress.Archives;
@@ -107,6 +110,19 @@ public static partial class ArchiveFactory
         return await FindFactoryAsync<T>(stream, cancellationToken).ConfigureAwait(false);
     }
 
+    private static async ValueTask<T> FindFactoryAsync<T>(
+        FileInfo fileInfo,
+        ReaderOptions readerOptions,
+        CancellationToken cancellationToken
+    )
+        where T : IFactory
+    {
+        fileInfo.NotNull(nameof(fileInfo));
+        using Stream stream = fileInfo.OpenRead();
+        return await FindFactoryAsync<T>(stream, readerOptions, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     internal static async ValueTask<T> FindFactoryAsync<T>(
         Stream stream,
         CancellationToken cancellationToken = default
@@ -120,7 +136,22 @@ public static partial class ArchiveFactory
         // implements T we return it; otherwise (or if nothing matched) we fall through
         // to the same "unsupported format" exception that the original code produced,
         // listing the T-typed factories as the hint for the caller.
-        var factory = await TryFindFactoryAsync(stream, cancellationToken).ConfigureAwait(false);
+        return await FindFactoryAsync<T>(stream, ReaderOptions.ForExternalStream, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async ValueTask<T> FindFactoryAsync<T>(
+        Stream stream,
+        ReaderOptions readerOptions,
+        CancellationToken cancellationToken
+    )
+        where T : IFactory
+    {
+        stream.RequireReadable();
+        stream.RequireSeekable();
+
+        var factory = await TryFindFactoryAsync(stream, readerOptions, cancellationToken)
+            .ConfigureAwait(false);
         if (factory is T typedFactory)
         {
             return typedFactory;
@@ -134,18 +165,11 @@ public static partial class ArchiveFactory
     }
 
     /// <summary>
-    /// Async counterpart of <see cref="ArchiveFactory.TryFindFactory"/>.
+    /// Async counterpart of the synchronous factory detection path.
     /// Iterates all registered factories and returns the first one whose
     /// <see cref="IFactory.IsArchiveAsync"/> recognises the stream, or <see langword="null"/>.
     /// Stream position is restored to its value at entry on both success and failure.
     /// </summary>
-    private static async ValueTask<IFactory?> TryFindFactoryAsync(
-        Stream stream,
-        CancellationToken cancellationToken
-    ) =>
-        await TryFindFactoryAsync(stream, ReaderOptions.ForExternalStream, cancellationToken)
-            .ConfigureAwait(false);
-
     private static async ValueTask<IFactory?> TryFindFactoryAsync(
         Stream stream,
         ReaderOptions readerOptions,
@@ -163,6 +187,15 @@ public static partial class ArchiveFactory
 
             if (isArchive)
             {
+                stream.Seek(startPosition, SeekOrigin.Begin);
+                if (
+                    await IsCompressedTarAsync(stream, factory, readerOptions, cancellationToken)
+                        .ConfigureAwait(false)
+                )
+                {
+                    continue;
+                }
+
                 stream.Seek(startPosition, SeekOrigin.Begin);
                 return factory;
             }
@@ -254,6 +287,12 @@ public static partial class ArchiveFactory
             if (isArchive)
             {
                 stream.Seek(startPosition, SeekOrigin.Begin);
+                if (IsCompressedTar(stream, factory, readerOptions))
+                {
+                    continue;
+                }
+
+                stream.Seek(startPosition, SeekOrigin.Begin);
                 return factory;
             }
         }
@@ -261,4 +300,115 @@ public static partial class ArchiveFactory
         stream.Seek(startPosition, SeekOrigin.Begin);
         return null;
     }
+
+    private static bool IsCompressedTar(
+        Stream stream,
+        IFactory factory,
+        ReaderOptions readerOptions
+    ) =>
+        GetCompressedTarType(factory) is { } compressionType
+        && IsCompressedTar(stream, readerOptions, compressionType);
+
+    private static bool IsCompressedTar(
+        Stream stream,
+        ReaderOptions readerOptions,
+        CompressionType compressionType
+    )
+    {
+        using var nonDisposingStream = SharpCompressStream.CreateNonDisposing(stream);
+        var testStream =
+            compressionType == CompressionType.GZip
+                ? readerOptions.Providers.CreateDecompressStream(
+                    compressionType,
+                    nonDisposingStream,
+                    CompressionContext
+                        .FromStream(nonDisposingStream)
+                        .WithReaderOptions(readerOptions)
+                )
+                : readerOptions.Providers.CreateDecompressStream(
+                    compressionType,
+                    nonDisposingStream
+                );
+
+        try
+        {
+            return TarArchive.IsTarFile(testStream);
+        }
+        finally
+        {
+            DisposeProbeStream(testStream);
+        }
+    }
+
+    private static async ValueTask<bool> IsCompressedTarAsync(
+        Stream stream,
+        IFactory factory,
+        ReaderOptions readerOptions,
+        CancellationToken cancellationToken
+    ) =>
+        GetCompressedTarType(factory) is { } compressionType
+        && await IsCompressedTarAsync(stream, readerOptions, compressionType, cancellationToken)
+            .ConfigureAwait(false);
+
+    private static async ValueTask<bool> IsCompressedTarAsync(
+        Stream stream,
+        ReaderOptions readerOptions,
+        CompressionType compressionType,
+        CancellationToken cancellationToken
+    )
+    {
+        using var nonDisposingStream = SharpCompressStream.CreateNonDisposing(stream);
+        var testStream =
+            compressionType == CompressionType.GZip
+                ? await readerOptions
+                    .Providers.CreateDecompressStreamAsync(
+                        compressionType,
+                        nonDisposingStream,
+                        CompressionContext
+                            .FromStream(nonDisposingStream)
+                            .WithReaderOptions(readerOptions),
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false)
+                : await readerOptions
+                    .Providers.CreateDecompressStreamAsync(
+                        compressionType,
+                        nonDisposingStream,
+                        cancellationToken
+                    )
+                    .ConfigureAwait(false);
+
+        try
+        {
+            return await TarArchive
+                .IsTarFileAsync(testStream, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            DisposeProbeStream(testStream);
+        }
+    }
+
+    private static void DisposeProbeStream(Stream stream)
+    {
+        try
+        {
+#pragma warning disable VSTHRD103 // Probe streams may validate unread trailers during disposal.
+            stream.Dispose();
+#pragma warning restore VSTHRD103
+        }
+        catch
+        {
+            // Probes intentionally read only enough data to identify tar content.
+        }
+    }
+
+    private static CompressionType? GetCompressedTarType(IFactory factory) =>
+        factory switch
+        {
+            GZipFactory => CompressionType.GZip,
+            LzwFactory => CompressionType.Lzw,
+            _ => null,
+        };
 }

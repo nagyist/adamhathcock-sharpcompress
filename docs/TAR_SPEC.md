@@ -57,18 +57,18 @@ Tar wrapper detection is defined by `TarWrapper.Wrappers` in `src/SharpCompress/
 | Wrapper | Detection | `TarArchive` read | `TarReader` read | `TarWriter` write |
 | ------- | --------- | ----------------- | ---------------- | ----------------- |
 | Plain tar | Yes | Yes | Yes | Yes |
-| Tar + GZip | Yes | Yes | Yes | Yes |
-| Tar + BZip2 | Yes | Yes | Yes | Yes |
-| Tar + LZip | Yes | Yes | Yes | Yes |
-| Tar + XZ | Yes | Yes | Yes | No |
-| Tar + ZStandard | Yes | Yes | Yes | No |
-| Tar + LZW compress | Yes | Yes | Yes | No |
+| Tar + GZip | Reader only | No | Yes | Yes |
+| Tar + BZip2 | Reader only | No | Yes | Yes |
+| Tar + LZip | Reader only | No | Yes | Yes |
+| Tar + XZ | Reader only | No | Yes | No |
+| Tar + ZStandard | Reader only | No | Yes | No |
+| Tar + LZW compress | Reader only | No | Yes | No |
 
 Write support is implemented in `src/SharpCompress/Writers/Tar/TarWriter.cs` and currently accepts only `CompressionType.None`, `CompressionType.GZip`, `CompressionType.BZip2`, and `CompressionType.LZip`.
 
 ## Detection Behavior
 
-Tar detection is implemented in `TarFactory.IsArchive`, `TarFactory.IsArchiveAsync`, `TarFactory.GetCompressionType`, and `TarFactory.GetCompressionTypeAsync`.
+Tar reader detection is implemented in `TarFactory.TryOpenReader`, `TarFactory.TryOpenReaderAsync`, `TarFactory.GetCompressionType`, and `TarFactory.GetCompressionTypeAsync`. Archive detection through `TarFactory.IsArchive` and `TarFactory.IsArchiveAsync` accepts raw tar only.
 
 Detection behavior is:
 
@@ -77,13 +77,14 @@ Detection behavior is:
 3. Probe each registered wrapper in order.
 4. If a wrapper matches, create a decompression stream for that wrapper.
 5. Call `TarArchive.IsTarFile` or `TarArchive.IsTarFileAsync` on the decompressed stream.
-6. If the tar probe succeeds, treat the stream as tar with that wrapper compression.
+6. If the tar probe succeeds, open `TarReader` with that wrapper compression.
 
 Implications:
 
 - Tar detection is content-based, not extension-based.
 - Wrapper detection is not sufficient by itself. The decompressed payload must also parse as tar.
-- Non-seekable detection is supported through the recording and rewind mechanism.
+- Non-seekable wrapper detection is supported through the recording and rewind mechanism on the reader path.
+- `ArchiveFactory`/`TarArchive` do not open compressed tar wrappers and do not fall through to the outer compression wrapper archive; use `ReaderFactory`/`TarReader` for `.tar.gz`, `.tar.bz2`, `.tar.xz`, `.tar.zst`, `.tar.lz`, and `.tar.Z`.
 - The largest rewind requirement currently comes from BZip2, which declares a larger minimum probe buffer in `TarWrapper`.
 
 `TarArchive.IsTarFile` and `TarArchive.IsTarFileAsync` attempt to read a single tar header and return `false` on any exception. They also treat an all-zero empty archive block as a valid empty tar archive when the entry type is defined.
@@ -151,20 +152,15 @@ Implementation files:
 
 `TarArchive.OpenArchive(Stream)` and `TarArchive.OpenAsyncArchive(Stream)` require a seekable stream and throw `ArgumentException` when `CanSeek` is `false`.
 
-`TarArchive.OpenArchive(FileInfo)` and the list-based overloads use `SourceStream` and determine wrapper compression by calling `TarFactory.GetCompressionType`.
+`TarArchive.OpenArchive(FileInfo)` and the list-based overloads use `SourceStream` and validate the input as raw tar.
 
-Asynchronous `OpenAsyncArchive` overloads use `TarFactory.GetCompressionTypeAsync` for wrapper detection.
+Asynchronous `OpenAsyncArchive` overloads perform the same raw-tar validation.
 
 ### Entry Loading
 
-`TarArchive.LoadEntries` and `LoadEntriesAsync` parse entries differently depending on wrapper compression:
+`TarArchive.LoadEntries` and `LoadEntriesAsync` parse raw tar streams in `StreamingMode.Seekable`. The header stores `DataStartPosition`, and entries reopen data through `TarFilePart` by seeking back to the data position.
 
-- Uncompressed tar uses `StreamingMode.Seekable`.
-- Wrapped tar uses `StreamingMode.Streaming` because the decompressed stream is not treated as random-access.
-
-When seekable mode is used, the header stores `DataStartPosition`, and entries reopen data through `TarFilePart` by seeking back to the data position.
-
-When streaming mode is used, the header stores a `PackedStream`, and entry access follows streaming semantics over the decompressed stream.
+Wrapped tar streams use `TarReader`, whose forward-only entry access follows streaming semantics over the decompressed stream.
 
 ### Archive Rewrite Behavior
 
@@ -418,7 +414,7 @@ This section documents current implementation limits, not desired future behavio
 ### Archive behavior limitations
 
 - Stream-based archive open requires a seekable input stream
-- Compressed tar archive access is not full random-access in the same sense as uncompressed seekable tar
+- Compressed tar wrappers are supported through `TarReader`, not `TarArchive`
 
 ## Test Coverage Map
 

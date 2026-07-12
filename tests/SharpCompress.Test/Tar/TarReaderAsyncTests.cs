@@ -46,6 +46,25 @@ public class TarReaderAsyncTests : ReaderTests
     public async ValueTask Tar_Z_Reader_Async() =>
         await ReadAsync("Tar.tar.Z", CompressionType.Lzw);
 
+    [Theory]
+    [InlineData("Tar.tar.gz", "gz", CompressionType.GZip)]
+    [InlineData("Tar.tar.Z", "z", CompressionType.Lzw)]
+    public async ValueTask ReaderFactory_ExtensionHint_PreservesCompressedTarDetection_Async(
+        string archiveName,
+        string extensionHint,
+        CompressionType compressionType
+    )
+    {
+        using var stream = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, archiveName));
+        var options = ReaderOptions.ForExternalStream.WithExtensionHint(extensionHint);
+
+        await using var reader = await ReaderFactory.OpenAsyncReader(stream, options);
+
+        Assert.Equal(ArchiveType.Tar, reader.Type);
+        Assert.True(await reader.MoveToNextEntryAsync());
+        Assert.Equal(compressionType, reader.Entry.CompressionType);
+    }
+
     [Fact]
     public async ValueTask Tar_Async_Assert() => await AssertArchiveAsync("Tar.tar");
 

@@ -4,12 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SharpCompress.Common;
-using SharpCompress.Common.Options;
 using SharpCompress.Common.Tar;
 using SharpCompress.IO;
 using SharpCompress.Readers;
 using SharpCompress.Readers.Tar;
-using SharpCompress.Writers;
 using SharpCompress.Writers.Tar;
 
 namespace SharpCompress.Archives.Tar;
@@ -85,7 +83,7 @@ public partial class TarArchive
     {
         var stream = Volumes.Single().Stream;
         stream.Position = 0;
-        return new((IAsyncReader)new TarReader(stream, ReaderOptions, _compressionType));
+        return new((IAsyncReader)new TarReader(stream, ReaderOptions, CompressionType.None));
     }
 
     protected override async IAsyncEnumerable<TarArchiveEntry> LoadEntriesAsync(
@@ -93,20 +91,15 @@ public partial class TarArchive
     )
     {
         var sourceStream = (await volumes.SingleAsync().ConfigureAwait(false)).Stream;
-        var stream = await GetStreamAsync(sourceStream).ConfigureAwait(false);
+        var stream = sourceStream;
         if (stream.CanSeek)
         {
             stream.Position = 0;
         }
 
-        var streamingMode =
-            _compressionType == CompressionType.None
-                ? StreamingMode.Seekable
-                : StreamingMode.Streaming;
-
         await foreach (
             var header in TarHeaderFactory.ReadHeaderAsync(
-                streamingMode,
+                StreamingMode.Seekable,
                 stream,
                 ReaderOptions.ArchiveEncoding
             )
@@ -116,10 +109,7 @@ public partial class TarArchive
             {
                 yield return new TarArchiveEntry(
                     this,
-                    new TarFilePart(
-                        header,
-                        _compressionType == CompressionType.None ? stream : null
-                    ),
+                    new TarFilePart(header, stream),
                     CompressionType.None,
                     ReaderOptions
                 );

@@ -486,14 +486,53 @@ public class TarArchiveTests : ArchiveTests
         Assert.False(isTar);
     }
 
-    [Fact]
-    public void TarArchiveStreamRead_Autodetect_CompressedTar()
+    [Theory]
+    [InlineData("Tar.tar.gz")]
+    [InlineData("Tar.tar.bz2")]
+    [InlineData("Tar.tar.lz")]
+    [InlineData("Tar.tar.xz")]
+    [InlineData("Tar.tar.zst")]
+    [InlineData("Tar.tar.Z")]
+    public void ArchiveFactoryStreamRead_Autodetect_RejectsCompressedTar(string archiveName)
     {
-        using Stream stream = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, "Tar.tar.gz"));
-        using var archive = ArchiveFactory.OpenArchive(stream);
+        using Stream stream = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, archiveName));
 
-        Assert.Equal(ArchiveType.Tar, archive.Type);
-        Assert.NotEmpty(archive.Entries);
+        Assert.Throws<ArchiveOperationException>(() => ArchiveFactory.OpenArchive(stream));
+    }
+
+    [Theory]
+    [InlineData("Tar.tar.gz")]
+    [InlineData("Tar.tar.bz2")]
+    [InlineData("Tar.tar.lz")]
+    [InlineData("Tar.tar.xz")]
+    [InlineData("Tar.tar.zst")]
+    [InlineData("Tar.tar.Z")]
+    public void TarArchiveOpenArchive_RejectsCompressedTar(string archiveName)
+    {
+        using Stream stream = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, archiveName));
+
+        Assert.Throws<InvalidFormatException>(() => TarArchive.OpenArchive(stream));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void TarArchiveOpenArchive_RejectionHonorsLeaveStreamOpen(
+        bool leaveStreamOpen,
+        bool expectedDisposed
+    )
+    {
+        using var file = File.OpenRead(Path.Combine(TEST_ARCHIVES_PATH, "Tar.tar.gz"));
+        var stream = new TestStream(file);
+        var options = ReaderOptions.ForExternalStream.WithLeaveStreamOpen(leaveStreamOpen);
+
+        Assert.Throws<InvalidFormatException>(() => TarArchive.OpenArchive(stream, options));
+
+        Assert.Equal(expectedDisposed, stream.IsDisposed);
+        if (!stream.IsDisposed)
+        {
+            stream.Dispose();
+        }
     }
 
     [Fact]

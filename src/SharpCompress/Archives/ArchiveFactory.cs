@@ -16,7 +16,8 @@ public static partial class ArchiveFactory
     public static IArchive OpenArchive(Stream stream, ReaderOptions? readerOptions = null)
     {
         readerOptions ??= ReaderOptions.ForExternalStream;
-        return FindFactory<IArchiveFactory>(stream).OpenArchive(stream, readerOptions);
+        return FindFactory<IArchiveFactory>(stream, readerOptions)
+            .OpenArchive(stream, readerOptions);
     }
 
     public static IWritableArchive<TOptions> CreateArchive<TOptions>()
@@ -44,7 +45,7 @@ public static partial class ArchiveFactory
     {
         options ??= ReaderOptions.ForFilePath;
 
-        return FindFactory<IArchiveFactory>(fileInfo).OpenArchive(fileInfo, options);
+        return FindFactory<IArchiveFactory>(fileInfo, options).OpenArchive(fileInfo, options);
     }
 
     public static IArchive OpenArchive(
@@ -68,7 +69,8 @@ public static partial class ArchiveFactory
         fileInfo.NotNull(nameof(fileInfo));
         options ??= ReaderOptions.ForFilePath;
 
-        return FindFactory<IMultiArchiveFactory>(fileInfo).OpenArchive(filesArray, options);
+        return FindFactory<IMultiArchiveFactory>(fileInfo, options)
+            .OpenArchive(filesArray, options);
     }
 
     public static IArchive OpenArchive(IReadOnlyList<Stream> streams, ReaderOptions? options = null)
@@ -88,7 +90,8 @@ public static partial class ArchiveFactory
         firstStream.NotNull(nameof(firstStream));
         options ??= ReaderOptions.ForExternalStream;
 
-        return FindFactory<IMultiArchiveFactory>(firstStream).OpenArchive(streamsArray, options);
+        return FindFactory<IMultiArchiveFactory>(firstStream, options)
+            .OpenArchive(streamsArray, options);
     }
 
     public static void WriteToDirectory(
@@ -118,6 +121,17 @@ public static partial class ArchiveFactory
     }
 
     public static T FindFactory<T>(Stream stream)
+        where T : IFactory => FindFactory<T>(stream, ReaderOptions.ForExternalStream);
+
+    private static T FindFactory<T>(FileInfo fileInfo, ReaderOptions readerOptions)
+        where T : IFactory
+    {
+        fileInfo.NotNull(nameof(fileInfo));
+        using Stream stream = fileInfo.OpenRead();
+        return FindFactory<T>(stream, readerOptions);
+    }
+
+    private static T FindFactory<T>(Stream stream, ReaderOptions readerOptions)
         where T : IFactory
     {
         stream.RequireReadable();
@@ -127,7 +141,7 @@ public static partial class ArchiveFactory
         // implements T we return it; otherwise (or if nothing matched) we fall through
         // to the same "unsupported format" exception that the original code produced,
         // listing the T-typed factories as the hint for the caller.
-        var factory = TryFindFactory(stream);
+        var factory = TryFindFactory(stream, readerOptions);
         if (factory is T typedFactory)
         {
             return typedFactory;

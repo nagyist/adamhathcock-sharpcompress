@@ -80,6 +80,36 @@ public class LzwFactory : Factory, IReaderFactory
         return false;
     }
 
+    internal override async ValueTask<IAsyncReader?> TryOpenReaderAsync(
+        SharpCompressStream sharpCompressStream,
+        ReaderOptions options,
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (
+            !await LzwStream
+                .IsLzwStreamAsync(sharpCompressStream, cancellationToken)
+                .ConfigureAwait(false)
+        )
+        {
+            sharpCompressStream.Rewind();
+            return null;
+        }
+
+        sharpCompressStream.Rewind();
+        var tarReader = await new TarFactory()
+            .TryOpenReaderAsync(sharpCompressStream, options, cancellationToken)
+            .ConfigureAwait(false);
+        if (tarReader is not null)
+        {
+            return tarReader;
+        }
+
+        sharpCompressStream.StopRecording();
+        return await OpenAsyncReader(sharpCompressStream, options, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     /// <inheritdoc/>
     public IReader OpenReader(Stream stream, ReaderOptions? options) =>
         LzwReader.OpenReader(stream, options);

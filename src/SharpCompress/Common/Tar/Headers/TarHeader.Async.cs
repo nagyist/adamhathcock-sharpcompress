@@ -202,7 +202,8 @@ internal sealed partial class TarHeader
 
     internal async ValueTask<bool> ReadAsync(
         AsyncBinaryReader reader,
-        PaxMetadata? globalPaxMetadata = null
+        PaxMetadata? globalPaxMetadata = null,
+        CancellationToken cancellationToken = default
     )
     {
         globalPaxMetadata ??= new PaxMetadata();
@@ -213,35 +214,45 @@ internal sealed partial class TarHeader
         {
             while (true)
             {
-                await reader.ReadBytesAsync(buffer, 0, BLOCK_SIZE).ConfigureAwait(false);
+                await reader
+                    .ReadBytesAsync(buffer, 0, BLOCK_SIZE, cancellationToken)
+                    .ConfigureAwait(false);
                 entryType = ReadEntryType(buffer);
 
                 // LongName and LongLink headers can follow each other and need
                 // to apply to the header that follows them.
                 if (entryType == EntryType.LongName)
                 {
-                    pendingMetadata.Name = await ReadLongNameAsync(reader, buffer)
+                    pendingMetadata.Name = await ReadLongNameAsync(
+                            reader,
+                            buffer,
+                            cancellationToken
+                        )
                         .ConfigureAwait(false);
                     continue;
                 }
 
                 if (entryType == EntryType.LongLink)
                 {
-                    pendingMetadata.LinkName = await ReadLongNameAsync(reader, buffer)
+                    pendingMetadata.LinkName = await ReadLongNameAsync(
+                            reader,
+                            buffer,
+                            cancellationToken
+                        )
                         .ConfigureAwait(false);
                     continue;
                 }
 
                 if (entryType == EntryType.LocalExtendedHeader)
                 {
-                    await ReadPaxMetadataAsync(reader, buffer, pendingMetadata)
+                    await ReadPaxMetadataAsync(reader, buffer, pendingMetadata, cancellationToken)
                         .ConfigureAwait(false);
                     continue;
                 }
 
                 if (entryType == EntryType.GlobalExtendedHeader)
                 {
-                    await ReadPaxMetadataAsync(reader, buffer, globalPaxMetadata)
+                    await ReadPaxMetadataAsync(reader, buffer, globalPaxMetadata, cancellationToken)
                         .ConfigureAwait(false);
                     pendingMetadata = globalPaxMetadata.Clone();
                     continue;
@@ -306,12 +317,16 @@ internal sealed partial class TarHeader
         return true;
     }
 
-    private static async ValueTask ReadLengthAsync(AsyncBinaryReader reader, int length)
+    private static async ValueTask ReadLengthAsync(
+        AsyncBinaryReader reader,
+        int length,
+        CancellationToken cancellationToken
+    )
     {
         var buffer = ArrayPool<byte>.Shared.Rent(length);
         try
         {
-            await reader.ReadBytesAsync(buffer, 0, length).ConfigureAwait(false);
+            await reader.ReadBytesAsync(buffer, 0, length, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -319,13 +334,18 @@ internal sealed partial class TarHeader
         }
     }
 
-    private async ValueTask<string> ReadLongNameAsync(AsyncBinaryReader reader, byte[] buffer)
+    private async ValueTask<string> ReadLongNameAsync(
+        AsyncBinaryReader reader,
+        byte[] buffer,
+        CancellationToken cancellationToken
+    )
     {
         var nameBytes = await ReadMetadataPayloadAsync(
                 reader,
                 buffer,
                 MAX_LONG_NAME_SIZE,
-                "Long name"
+                "Long name",
+                cancellationToken
             )
             .ConfigureAwait(false);
 
@@ -335,14 +355,16 @@ internal sealed partial class TarHeader
     private async ValueTask ReadPaxMetadataAsync(
         AsyncBinaryReader reader,
         byte[] buffer,
-        PaxMetadata pendingMetadata
+        PaxMetadata pendingMetadata,
+        CancellationToken cancellationToken
     )
     {
         var payload = await ReadMetadataPayloadAsync(
                 reader,
                 buffer,
                 MAX_PAX_HEADER_SIZE,
-                "PAX header"
+                "PAX header",
+                cancellationToken
             )
             .ConfigureAwait(false);
 
@@ -353,7 +375,8 @@ internal sealed partial class TarHeader
         AsyncBinaryReader reader,
         byte[] buffer,
         int maxSize,
-        string payloadName
+        string payloadName,
+        CancellationToken cancellationToken
     )
     {
         var size = ReadSize(buffer);
@@ -368,12 +391,14 @@ internal sealed partial class TarHeader
 
         var payloadLength = (int)size;
         var payload = new byte[payloadLength];
-        await reader.ReadBytesAsync(payload, 0, payloadLength).ConfigureAwait(false);
+        await reader
+            .ReadBytesAsync(payload, 0, payloadLength, cancellationToken)
+            .ConfigureAwait(false);
 
         var paddingLength = GetPaddingLength(payloadLength);
         if (paddingLength > 0)
         {
-            await ReadLengthAsync(reader, paddingLength).ConfigureAwait(false);
+            await ReadLengthAsync(reader, paddingLength, cancellationToken).ConfigureAwait(false);
         }
 
         return payload;
