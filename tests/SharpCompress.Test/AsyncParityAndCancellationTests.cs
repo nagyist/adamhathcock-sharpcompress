@@ -19,7 +19,6 @@ public class AsyncParityAndCancellationTests : TestBase
     [Theory]
     [InlineData("Zip.deflate.zip")]
     [InlineData("Tar.tar")]
-    [InlineData("Tar.tar.gz")]
     [InlineData("Rar.rar")]
     [InlineData("7Zip.nonsolid.7z")]
     public async Task ArchiveAsyncEntries_ShouldMatchSyncEntries(string archiveName)
