@@ -163,7 +163,11 @@ public class ZipWriterNonSeekableTests
         {
             var entry = archive.Entries.Single(e => e.Key == name);
             using var extracted = new MemoryStream();
+#if LEGACY_DOTNET
+            using (var entryStream = await entry.OpenEntryStreamAsync())
+#else
             await using (var entryStream = await entry.OpenEntryStreamAsync())
+#endif
             {
                 await entryStream.CopyToAsync(extracted);
             }
