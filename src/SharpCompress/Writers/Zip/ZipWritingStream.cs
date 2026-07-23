@@ -373,7 +373,7 @@ public partial class ZipWriter
                 var compressedvalue = zip64 ? uint.MaxValue : (uint)countingCount;
                 var decompressedvalue = zip64 ? uint.MaxValue : (uint)entry.Decompressed;
 
-                if (originalStream.CanSeek)
+                if (!entry.UsesDataDescriptor)
                 {
                     originalStream.Position = (long)(entry.HeaderOffset + 6);
                     originalStream.WriteByte(0);
@@ -653,7 +653,7 @@ public partial class ZipWriter
             var compressedvalue = zip64 ? uint.MaxValue : (uint)countingCount;
             var decompressedvalue = zip64 ? uint.MaxValue : (uint)entry.Decompressed;
 
-            if (originalStream.CanSeek)
+            if (!entry.UsesDataDescriptor)
             {
                 originalStream.Position = (long)(entry.HeaderOffset + 6);
                 await originalStream.WriteAsync(new byte[] { 0 }, 0, 1).ConfigureAwait(false);

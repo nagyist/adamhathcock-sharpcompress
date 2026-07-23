@@ -118,7 +118,14 @@ public partial class ZipWriter
         }
 
         var headersize = (uint)
-            await WriteHeaderAsync(entryPath, options, entry, useZip64, cancellationToken)
+            await WriteHeaderAsync(
+                    entryPath,
+                    options,
+                    entry,
+                    useZip64,
+                    usesDataDescriptor: !OutputStream.NotNull().CanSeek,
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
         streamPosition += headersize;
         return await ZipWritingStream
@@ -138,16 +145,25 @@ public partial class ZipWriter
         ZipWriterEntryOptions zipWriterEntryOptions,
         ZipCentralDirectoryEntry entry,
         bool useZip64,
+        bool usesDataDescriptor,
         CancellationToken cancellationToken
     )
     {
         // Build the header synchronously into a MemoryStream, then async-copy to OutputStream.
         // This avoids any synchronous writes to the potentially async-only output stream.
         using var ms = new MemoryStream();
-        var result = WriteHeader(ms, filename, zipWriterEntryOptions, entry, useZip64);
+        var outputStream = OutputStream.NotNull();
+        var result = WriteHeader(
+            ms,
+            filename,
+            zipWriterEntryOptions,
+            entry,
+            useZip64,
+            outputStream.CanSeek,
+            usesDataDescriptor
+        );
         ms.Position = 0;
-        await ms.CopyToAsync(OutputStream.NotNull(), 81920, cancellationToken)
-            .ConfigureAwait(false);
+        await ms.CopyToAsync(outputStream, 81920, cancellationToken).ConfigureAwait(false);
         return result;
     }
 
@@ -206,7 +222,14 @@ public partial class ZipWriter
         }
 
         var headersize = (uint)
-            await WriteHeaderAsync(directoryPath, options, entry, useZip64, cancellationToken)
+            await WriteHeaderAsync(
+                    directoryPath,
+                    options,
+                    entry,
+                    useZip64,
+                    usesDataDescriptor: false,
+                    cancellationToken
+                )
                 .ConfigureAwait(false);
         streamPosition += headersize;
         entries.Add(entry);
