@@ -1,6 +1,8 @@
 using System.IO;
+using System.IO.Compression;
 using SharpCompress.Common;
 using SharpCompress.IO;
+using SharpCompress.Readers;
 using SharpCompress.Readers.GZip;
 using Xunit;
 
@@ -24,5 +26,28 @@ public class GZipReaderTests : ReaderTests
             Assert.NotEqual(0, reader.Entry.Size);
             Assert.NotEqual(0, reader.Entry.Crc);
         }
+    }
+
+    [Fact]
+    public void GZip_ReaderFactory_FlatGZip()
+    {
+        var source = new byte[2048];
+        for (var i = 0; i < source.Length; i++)
+        {
+            source[i] = 0xFF;
+        }
+
+        var gzipPath = Path.Combine(SCRATCH_FILES_PATH, "Flat.bin.gz");
+        using (var output = File.Create(gzipPath))
+        using (var gzip = new GZipStream(output, CompressionMode.Compress))
+        {
+            gzip.Write(source, 0, source.Length);
+        }
+
+        using var stream = File.OpenRead(gzipPath);
+        using var reader = ReaderFactory.OpenReader(stream);
+        Assert.IsType<GZipReader>(reader);
+        Assert.True(reader.MoveToNextEntry());
+        Assert.False(reader.MoveToNextEntry());
     }
 }

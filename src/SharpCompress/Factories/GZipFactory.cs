@@ -142,10 +142,14 @@ public class GZipFactory
         if (GZipArchive.IsGZipFile(sharpCompressStream))
         {
             sharpCompressStream.Rewind();
-            using var testStream = options.Providers.CreateDecompressStream(
-                CompressionType.GZip,
-                SharpCompressStream.CreateNonDisposing(sharpCompressStream),
-                CompressionContext.FromStream(sharpCompressStream).WithReaderOptions(options)
+            // Do not dispose the probe GZip stream directly. Disposing after a partial probe read
+            // can throw in the decompressor finalize path, so probe through a non-disposing wrapper.
+            using var testStream = SharpCompressStream.CreateNonDisposing(
+                options.Providers.CreateDecompressStream(
+                    CompressionType.GZip,
+                    SharpCompressStream.CreateNonDisposing(sharpCompressStream),
+                    CompressionContext.FromStream(sharpCompressStream).WithReaderOptions(options)
+                )
             );
             if (TarArchive.IsTarFile(testStream))
             {
