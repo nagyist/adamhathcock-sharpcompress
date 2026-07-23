@@ -34,6 +34,7 @@ internal class ZipCentralDirectoryEntry
     internal ulong Decompressed { get; set; }
     internal ushort Zip64HeaderOffset { get; set; }
     internal ulong HeaderOffset { get; }
+    internal bool UsesDataDescriptor { get; set; }
 
     internal uint Write(Stream outputStream)
     {
@@ -75,7 +76,7 @@ internal class ZipCentralDirectoryEntry
         var flags = Equals(archiveEncoding.GetEncoding(), Encoding.UTF8)
             ? HeaderFlags.Efs
             : HeaderFlags.None;
-        if (!outputStream.CanSeek)
+        if (UsesDataDescriptor)
         {
             // Cannot use data descriptors with zip64:
             // https://blogs.oracle.com/xuemingshen/entry/is_zipinput_outputstream_handling_of

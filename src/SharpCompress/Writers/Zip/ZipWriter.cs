@@ -117,7 +117,13 @@ public partial class ZipWriter : AbstractWriter
             useZip64 = options.EnableZip64.Value;
         }
 
-        var headersize = (uint)WriteHeader(entryPath, options, entry, useZip64);
+        var headersize = (uint)WriteHeader(
+            entryPath,
+            options,
+            entry,
+            useZip64,
+            usesDataDescriptor: !OutputStream.NotNull().CanSeek
+        );
         streamPosition += headersize;
         return new ZipWritingStream(
             this,
@@ -198,7 +204,13 @@ public partial class ZipWriter : AbstractWriter
             useZip64 = options.EnableZip64.Value;
         }
 
-        var headersize = (uint)WriteHeader(directoryPath, options, entry, useZip64);
+        var headersize = (uint)WriteHeader(
+            directoryPath,
+            options,
+            entry,
+            useZip64,
+            usesDataDescriptor: false
+        );
         streamPosition += headersize;
         entries.Add(entry);
     }
@@ -207,24 +219,41 @@ public partial class ZipWriter : AbstractWriter
         string filename,
         ZipWriterEntryOptions zipWriterEntryOptions,
         ZipCentralDirectoryEntry entry,
-        bool useZip64
-    ) => WriteHeader(OutputStream.NotNull(), filename, zipWriterEntryOptions, entry, useZip64);
+        bool useZip64,
+        bool usesDataDescriptor
+    )
+    {
+        var outputStream = OutputStream.NotNull();
+        return WriteHeader(
+            outputStream,
+            filename,
+            zipWriterEntryOptions,
+            entry,
+            useZip64,
+            outputStream.CanSeek,
+            usesDataDescriptor
+        );
+    }
 
     private int WriteHeader(
         Stream stream,
         string filename,
         ZipWriterEntryOptions zipWriterEntryOptions,
         ZipCentralDirectoryEntry entry,
-        bool useZip64
+        bool useZip64,
+        bool outputCanSeek,
+        bool usesDataDescriptor
     )
     {
         // We err on the side of caution until the zip specification clarifies how to support this
-        if (!stream.CanSeek && useZip64)
+        if (!outputCanSeek && useZip64)
         {
             throw new NotSupportedException(
                 "Zip64 extensions are not supported on non-seekable streams"
             );
         }
+
+        entry.UsesDataDescriptor = usesDataDescriptor;
 
         var explicitZipCompressionInfo = ToZipCompressionMethod(
             zipWriterEntryOptions.CompressionType ?? compressionType
@@ -236,7 +265,7 @@ public partial class ZipWriter : AbstractWriter
         stream.Write(intBuf);
         if (explicitZipCompressionInfo == ZipCompressionMethod.Deflate)
         {
-            if (stream.CanSeek && useZip64)
+            if (outputCanSeek && useZip64)
             {
                 stream.Write(stackalloc byte[] { 45, 0 }); //smallest allowed version for zip64
             }
@@ -252,7 +281,7 @@ public partial class ZipWriter : AbstractWriter
         var flags = Equals(WriterOptions.ArchiveEncoding.GetEncoding(), Encoding.UTF8)
             ? HeaderFlags.Efs
             : 0;
-        if (!stream.CanSeek)
+        if (usesDataDescriptor)
         {
             flags |= HeaderFlags.UsePostDataDescriptor;
 
@@ -280,7 +309,7 @@ public partial class ZipWriter : AbstractWriter
         stream.Write(intBuf.Slice(0, 2)); // filename length
 
         var extralength = 0;
-        if (stream.CanSeek && useZip64)
+        if (outputCanSeek && useZip64)
         {
             extralength = 2 + 2 + 8 + 8;
         }
